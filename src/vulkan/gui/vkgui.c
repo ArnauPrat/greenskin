@@ -5,8 +5,14 @@
 #include "../../../log.h"
 #include "../../../error.h"
 #include "../vkrenderer.h"
-#include "imgui_impl_vulkan.h"
-#include "../../../gui/imgui_impl_glfw.h"
+
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#include "../../third_party/cimgui/cimgui.h"
+
+#include "../../third_party/cimgui/imgui/impl/imgui_impl_glfw.h"
+#include "../../third_party/cimgui/imgui/impl/imgui_impl_vulkan.h"
+
+static ImGuiContext* ctx;
 
 static void check_vk_result(VkResult err)
 {
@@ -19,39 +25,38 @@ void
 gsvk_gui_init()
 {
 
-  
-  IMGUI_CHECKVERSION();
-  ImGui::CreateContext();
-  ImGuiIO& io = ImGui::GetIO(); (void)io;
-  //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
-  //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable Gamepad Controls
+  ctx = igCreateContext(NULL);
+  ImGuiIO io= *igGetIO(); ;
+
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable Gamepad Controls
 
   // Setup Dear ImGui style
-  ImGui::StyleColorsDark();
+  igStyleColorsDark(NULL);
   //ImGui::StyleColorsClassic();
 
   // Setup Platform/Renderer bindings
-  ImGui_ImplGlfw_InitForVulkan(p_renderer->p_window, true);
+  ImGui_ImplGlfw_InitForVulkan(m_vkrenderer.p_window, true);
   ImGui_ImplVulkan_InitInfo init_info = {};
-  init_info.Instance = p_renderer->m_vulkan_instance;
-  init_info.PhysicalDevice = p_renderer->m_physical_device;
-  init_info.Device = p_renderer->m_logical_device;
-  init_info.QueueFamily = p_renderer->m_queue_indices.m_graphics_queue;
-  init_info.Queue = p_renderer->m_graphics_queue;
+  init_info.Instance = m_vkrenderer.m_vulkan_instance;
+  init_info.PhysicalDevice = m_vkrenderer.m_physical_device;
+  init_info.Device = m_vkrenderer.m_logical_device;
+  init_info.QueueFamily = m_vkrenderer.m_gqueue_index;
+  init_info.Queue = m_vkrenderer.m_graphics_queue;
   init_info.PipelineCache = VK_NULL_HANDLE;
-  init_info.DescriptorPool = p_renderer->m_descriptor_pool;
+  init_info.DescriptorPool = m_vkrenderer.m_descriptor_pool;
   init_info.Allocator = VK_NULL_HANDLE;
-  init_info.MinImageCount = p_renderer->m_num_swap_chain_images;
-  init_info.ImageCount = p_renderer->m_num_swap_chain_images;
+  init_info.MinImageCount = m_vkrenderer.m_num_swap_chain_images;
+  init_info.ImageCount = m_vkrenderer.m_num_swap_chain_images;
   init_info.CheckVkResultFn = check_vk_result;
-  ImGui_ImplVulkan_Init(&init_info, p_renderer->m_render_pass);
+  ImGui_ImplVulkan_Init(&init_info, m_vkrenderer.m_render_pass);
 
   {
     // Use any command queue
-    VkCommandPool command_pool = p_renderer->m_command_pool;
-    VkCommandBuffer command_buffer = p_renderer->m_command_buffers[0];
+    VkCommandPool command_pool = m_vkrenderer.m_command_pool;
+    VkCommandBuffer command_buffer = m_vkrenderer.m_command_buffers[0];
 
-    VkResult res = vkResetCommandPool(p_renderer->m_logical_device, command_pool, 0);
+    VkResult res = vkResetCommandPool(m_vkrenderer.m_logical_device, command_pool, 0);
     check_vk_result(res);
     VkCommandBufferBeginInfo begin_info = {};
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -67,10 +72,10 @@ gsvk_gui_init()
     end_info.pCommandBuffers = &command_buffer;
     res = vkEndCommandBuffer(command_buffer);
     check_vk_result(res);
-    res = vkQueueSubmit(p_renderer->m_graphics_queue, 1, &end_info, VK_NULL_HANDLE);
+    res = vkQueueSubmit(m_vkrenderer.m_graphics_queue, 1, &end_info, VK_NULL_HANDLE);
     check_vk_result(res);
 
-    res = vkDeviceWaitIdle(p_renderer->m_logical_device);
+    res = vkDeviceWaitIdle(m_vkrenderer.m_logical_device);
     check_vk_result(res);
     ImGui_ImplVulkan_DestroyFontUploadObjects();
   }
@@ -78,28 +83,28 @@ gsvk_gui_init()
 }
 
 void
-vkgui_recreate()
+gsvk_gui_recreate()
 {
-  ImGui_ImplVulkan_SetMinImageCount(p_renderer->m_num_swap_chain_images);
+  ImGui_ImplVulkan_SetMinImageCount(m_vkrenderer.m_num_swap_chain_images);
 }
 
 void
-vkgui_begin_frame()
+gsvk_gui_begin_frame()
 {
   ImGui_ImplVulkan_NewFrame();
   ImGui_ImplGlfw_NewFrame();
 }
 
 void
-vkgui_build_commands(uint32_t index)
+gsvk_gui_build_commands(uint32_t index)
 {
-  ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), p_renderer->m_command_buffers[index]);
+  ImGui_ImplVulkan_RenderDrawData(igGetDrawData(), m_vkrenderer.m_command_buffers[index]);
 }
 
 void
-vkgui_terminate()
+gsvk_gui_release()
 {
   ImGui_ImplVulkan_Shutdown();
   ImGui_ImplGlfw_Shutdown();
-  ImGui::DestroyContext();
+  igDestroyContext(ctx);
 }

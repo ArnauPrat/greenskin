@@ -51,6 +51,9 @@
 #define GS_RENDERING_MEMORY               MEGABYTES(128)
 #define GS_RENDERING_SMALL_PAGE_SIZE      KILOBYTES(4)
 #define GS_RENDERING_LARGE_PAGE_SIZE      KILOBYTES(64)
+#define GS_RENDERING_VMEM_BFF_HOST        MEGABYTES(32)
+#define GS_RENDERING_VMEM_IMG_DEVICE      MEGABYTES(192)
+#define GS_RENDERING_VMEM_BFF_DEVICE      MEGABYTES(64)
 
 #define GS_RESOURCES_MEMORY               MEGABYTES(256)
 #define GS_RESOURCES_SMALL_PAGE_SIZE      KILOBYTES(4)
@@ -72,7 +75,7 @@
 #define GS_TASKING_MAX_TASK_CONTEXTS      1024
 #define GS_TASKING_MAX_EXEC_CONTEXTS      GS_TASKING_MAX_TASK_CONTEXTS
 
-
+#define GS_INPUT_MAX_CALLBACKS            16
 
 #ifdef GS_OS_LINUX
   #define GS_THREAD __thread
@@ -88,7 +91,7 @@ uint32_t
 gs_os_page_size();
 
 /**
- * \brief Protects the given memory retion
+ * \brief Protects the given memory region
  *
  * \param ptr The pointer to the beginning of the memory region
  * \param size The size of the memory region

@@ -10,7 +10,7 @@ gsvk_image_init(gsvk_image_t* image,
                 VkFormat format, 
                 VkImageTiling tiling, 
                 VkImageUsageFlags usage, 
-                VkMemoryPropertyFlagBits mem_props
+                gsvk_mem_type_t mem_type
                 )
 {
 
@@ -38,15 +38,20 @@ gsvk_image_init(gsvk_image_t* image,
                  "failed to create image!");
   }
 
-  VkMemoryRequirements memRequirements;
+  gsvk_mem_alloc_image(&m_vkrenderer.m_vk_mem_alloc, 
+                       &image->m_ihandle, 
+                       mem_type, 
+                       &image->m_mhandle);
+
+  /*VkMemoryRequirements mem_reqs;
   vkGetImageMemoryRequirements(m_vkrenderer.m_logical_device, 
                                image->m_ihandle, 
-                               &memRequirements);
+                               &mem_reqs);
 
   VkMemoryAllocateInfo allocInfo = {};
   allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-  allocInfo.allocationSize = memRequirements.size;
-  allocInfo.memoryTypeIndex = gsvk_find_memory_type(&memRequirements, mem_props);
+  allocInfo.allocationSize = mem_reqs.size;
+  allocInfo.memoryTypeIndex = gsvk_find_memory_type(&mem_reqs, mem_props);
 
   if (vkAllocateMemory(m_vkrenderer.m_logical_device,
                        &allocInfo, 
@@ -56,11 +61,13 @@ gsvk_image_init(gsvk_image_t* image,
     GS_LOG_ERROR(E_RENDERER_RESOURCE_ALLOCATION_ERROR, 
                  "failed to allocate image memory!");
   }
+  */
+
 
   vkBindImageMemory(m_vkrenderer.m_logical_device,
                     image->m_ihandle, 
-                    image->m_mhandle, 
-                    0);
+                    image->m_mhandle.m_mhandle, 
+                    image->m_mhandle.m_offset);
 
   image->m_width = width;
   image->m_height = height;
@@ -78,9 +85,12 @@ gsvk_image_init(gsvk_image_t* image,
 void
 gsvk_image_release(gsvk_image_t* image)
 {
-  vkFreeMemory(m_vkrenderer.m_logical_device, 
+  /*vkFreeMemory(m_vkrenderer.m_logical_device, 
                image->m_mhandle,
                NULL);
+               */
+  gsvk_mem_alloc_free(&m_vkrenderer.m_vk_mem_alloc, 
+                      &image->m_mhandle);
 
   vkDestroyImage(m_vkrenderer.m_logical_device, 
                  image->m_ihandle,

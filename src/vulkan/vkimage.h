@@ -3,13 +3,15 @@
 #define _GS_VKIMAGE_H_
 
 #include <vulkan/vulkan.h>
+#include "vkmem_allocator.h"
 
 typedef struct gsvk_image_t
 {
-  VkImage         m_ihandle;
-  VkDeviceMemory  m_mhandle;
-  uint32_t        m_width;
-  uint32_t        m_height;
+  VkImage               m_ihandle;
+  //VkDeviceMemory  m_mhandle;
+  gsvk_mem_alloc_info_t m_mhandle;
+  uint32_t              m_width;
+  uint32_t              m_height;
 } gsvk_image_t;
 
 /**
@@ -29,7 +31,7 @@ gsvk_image_init(gsvk_image_t* image,
                 VkFormat format, 
                 VkImageTiling tiling, 
                 VkImageUsageFlags usage, 
-                VkMemoryPropertyFlagBits mem_props);
+                gsvk_mem_type_t mem_type);
 
 /**
  * \brief Releases the vulkan image

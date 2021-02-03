@@ -237,22 +237,22 @@ message(STATUS "FURIOUS LIBRARIES DIR: ${FURIOUS_LIBRARIES_DIR}")
 #  tnasdk/definitions.h
 #	)
 
-set(IMGUI_SOURCES
-  third_party/imgui/imconfig.h
-  third_party/imgui/imgui.cpp
-  third_party/imgui/imgui.h
-  third_party/imgui/imgui_demo.cpp
-  third_party/imgui/imgui_draw.cpp
-  third_party/imgui/imgui_impl_glfw.cpp
-  third_party/imgui/imgui_impl_glfw.h
-  third_party/imgui/imgui_impl_vulkan.cpp
-  third_party/imgui/imgui_impl_vulkan.h
-  third_party/imgui/imgui_internal.h
-  third_party/imgui/imgui_widgets.cpp
-  third_party/imgui/imstb_rectpack.h
-  third_party/imgui/imstb_textedit.h
-  third_party/imgui/imstb_truetype.h
-  )
+#set(IMGUI_SOURCES
+#  third_party/imgui/imconfig.h
+#  third_party/imgui/imgui.cpp
+#  third_party/imgui/imgui.h
+#  third_party/imgui/imgui_demo.cpp
+#  third_party/imgui/imgui_draw.cpp
+#  third_party/imgui/imgui_impl_glfw.cpp
+#  third_party/imgui/imgui_impl_glfw.h
+#  third_party/imgui/imgui_impl_vulkan.cpp
+#  third_party/imgui/imgui_impl_vulkan.h
+#  third_party/imgui/imgui_internal.h
+#  third_party/imgui/imgui_widgets.cpp
+#  third_party/imgui/imstb_rectpack.h
+#  third_party/imgui/imstb_textedit.h
+#  third_party/imgui/imstb_truetype.h
+#  )
 
 set(GSVK_SOURCES
   #vulkan/gui/vkgui.c
@@ -273,11 +273,24 @@ set(GSVK_SOURCES
   vulkan/vkswapchain_tools.h
   vulkan/vkvertex_tools.c
   vulkan/vkvertex_tools.h
+  vulkan/vkmem_allocator.c
+  vulkan/vkmem_allocator.h
+  vulkan/gui/vkgui.h
+  vulkan/gui/vkgui.c
+  )
+
+set(GS_WIDGETS 
+  widgets/tasking_widget.h
+  widgets/tasking_widget.c
   )
 
 set(GS_SOURCE_FILES
   #  ${IMGUI_SOURCES}
   ${GSVK_SOURCES}
+  ${GS_WIDGETS}
+  aabb.h
+  geom_tests.h
+  geom_tests.c
   atomic_counter.c
   atomic_counter.h
   barrier.c
@@ -289,8 +302,13 @@ set(GS_SOURCE_FILES
   error.c
   error.h
   game.c
+  geom_tests.h
+  geom_tests.c
+  input.h
+  input.c
   log.c
   log.h
+  matrix.h
   memory.c
   memory.h
   mutex.h
@@ -309,7 +327,24 @@ set(GS_SOURCE_FILES
   thread.c
   queue.h
   queue.c
+  vector.h
   )
+
+# CIMGUI LIBRARY
+add_library(cimgui STATIC 
+  third_party/cimgui/cimgui.cpp
+  third_party/cimgui/imgui/imgui.cpp
+  third_party/cimgui/imgui/imgui_draw.cpp
+  third_party/cimgui/imgui/imgui_demo.cpp
+  third_party/cimgui/imgui/imgui_widgets.cpp
+  )
+
+# IMGUI VULKAN AND GLFW IMPL
+add_library(imgui_impl STATIC 
+  third_party/cimgui/imgui/impl/imgui_impl_vulkan.cpp 
+  third_party/cimgui/imgui/impl/imgui_impl_glfw.cpp
+  )
+target_compile_definitions(imgui_impl PRIVATE IMGUI_IMPL_API=extern\ \"C\")
 
 
 #message(STATUS ${CMAKE_CURRENT_BINARY_DIR})
@@ -333,12 +368,15 @@ set(GS_SOURCE_FILES
 add_executable(greenskin
   ${GS_SOURCE_FILES}
  )  
+target_compile_definitions(greenskin PRIVATE IMGUI_IMPL_API=)
 
 target_link_libraries(greenskin
   boost_context
   glfw
   furious
   pthread
+  imgui_impl
+  cimgui
   ${Vulkan_LIBRARIES}
   )
 

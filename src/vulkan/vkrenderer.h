@@ -6,14 +6,16 @@
 
 #include "../platform.h"
 #include "../renderer.h"
-#include "../../memory.h"
+#include "../memory.h"
 #include "vkimage.h"
+#include "vkmem_allocator.h"
 #include <vulkan/vulkan.h>
 
 typedef struct gsvk_renderer_t 
 {
   gs_stack_alloc_t                      m_stack_alloc;      ///< The stack allocator of the renderer
   gs_stack_alloc_t                      m_sc_stack_alloc;   ///< This stack allocator is used for resources that might need to be recreated and that are related to swap chains
+  gsvk_mem_alloc_t                      m_vk_mem_alloc;
   GLFWwindow*                           p_window;
 
   uint32_t                              m_viewport_width;   ///< Width of the viewport

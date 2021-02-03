@@ -7,6 +7,11 @@
 #include "tasking.h"
 #include "resources.h"
 #include "renderer.h"
+#include "input.h"
+
+#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS
+#include "third_party/cimgui/cimgui.h"
+#include "widgets/tasking_widget.h"
 //#include "rendering/rendering.h"
 //#include "resources/resources.h"
 //#include "gui/imgui.h"
@@ -34,8 +39,12 @@
 
 static gs_config_t         m_config;
 static GLFWwindow*         p_window  = NULL;
-//static bool                m_show_gui = true;
-//static bool                m_edit_mode = false;
+static bool                m_show_gui = true;
+static bool                m_edit_mode = false;
+static double              m_mouse_old_pos_x = 0.0;
+static double              m_mouse_old_pos_y = 0.0;
+static double              m_mouse_delta_pos_x = 0.0;
+static double              m_mouse_delta_pos_y = 0.0;
 
 //static fdb_database_t*     p_database = NULL;;
 //static float               m_last_game_loop_time = 0.0f;
@@ -46,28 +55,55 @@ static GLFWwindow*         p_window  = NULL;
 //static std::condition_variable*     m_main_thread_cond = NULL;
 //static std::mutex*                  m_main_thread_mutex = NULL;
 
-static void 
-gs_key_callback(GLFWwindow* window, 
-             int key, 
-             int scancode, 
-             int action, 
-             int mods)
+void gs_toggle_gui();
+void gs_toggle_edit_mode();
+bool gs_is_edit_mode();
+
+void
+gs_process_key_edit(struct GLFWwindow* window, 
+                   int key, 
+                   int scancode, 
+                   int action, 
+                   int mods)
+{
+  // General key commands
+  switch(key)
+  {
+    case GLFW_KEY_ESCAPE:
+      glfwSetWindowShouldClose(window, GLFW_TRUE);
+      break;
+    case GLFW_KEY_G:
+      if (action == GLFW_PRESS)
+      {
+        gs_toggle_gui();
+      }
+      break;
+    case GLFW_KEY_E:
+      if (action == GLFW_PRESS)
+      {
+        gs_toggle_edit_mode();
+        glfwGetCursorPos(p_window, 
+                         &m_mouse_old_pos_x, 
+                         &m_mouse_old_pos_y);
+
+        m_mouse_delta_pos_x = 0;
+        m_mouse_delta_pos_y = 0;
+      }
+  }
+}
+
+void 
+gs_process_mouse_pos_edit(struct GLFWwindow* window, 
+                           double xpos, 
+                           double ypos)
 {
 }
 
-static 
-void gs_mouse_pos_callback(GLFWwindow* window, 
-                        double xpos, 
-                        double ypos)
-{
-}
-
-
-static void 
-gs_mouse_button_callback(GLFWwindow* window, 
-                      int button, 
-                      int action, 
-                      int mods)
+void 
+gs_process_mouse_button_edit(struct GLFWwindow* window, 
+                            int button, 
+                            int action, 
+                            int mods)
 {
 }
 
@@ -116,19 +152,30 @@ gs_init(void)
   glfwSetKeyCallback(p_window, gs_key_callback);
   glfwSetMouseButtonCallback(p_window, gs_mouse_button_callback);
   glfwSetCursorPosCallback(p_window, gs_mouse_pos_callback);
-  /*
+  
   glfwSetInputMode(p_window, 
                    GLFW_CURSOR,
                    GLFW_CURSOR_DISABLED);
-                   */
 
   glfwSetCursorPos(p_window, 
                    m_config.m_vwidth/2.0, 
                    m_config.m_vheight/2.0);
 
+  GS_LOG_INFO("Initializing rendering module");
   gs_renderer_init(&m_config, p_window);
+  
+  GS_LOG_INFO("Initializing gui module");
+  gs_gui_init();
+
+  GS_LOG_INFO("Initializing input module");
+  gs_input_init();
+
+
+  gs_input_register_callbacks((gs_input_callbacks_t){gs_process_key_edit, 
+                              gs_process_mouse_pos_edit, 
+                              gs_process_mouse_button_edit}
+                              );
   /*
-  init_gui();
   rendering_scene_init();
   */
 
@@ -161,7 +208,14 @@ gs_release(void)
   trace_release();
   directory_registry_release();
   */
-  GS_LOG_INFO("Releasing renderer module");
+
+  GS_LOG_INFO("Releasing input module");
+  gs_input_release();
+
+  GS_LOG_INFO("Releasing gui module");
+  gs_gui_release();
+
+  GS_LOG_INFO("Releasing rendering module");
   gs_renderer_release();
 
   GS_LOG_INFO("Releasing resources module");
@@ -184,15 +238,14 @@ gs_release(void)
   return;
 }
 
-/*
 void
-toggle_gui()
+gs_toggle_gui()
 {
   m_show_gui = !m_show_gui;
 }
 
 void
-toggle_edit_mode()
+gs_toggle_edit_mode()
 {
   if(m_edit_mode)
   {
@@ -206,48 +259,46 @@ toggle_edit_mode()
                      GLFW_CURSOR,
                      GLFW_CURSOR_NORMAL);
 
-    viewport_t* viewport = FURIOUS_FIND_GLOBAL(p_database, viewport_t);
-    glfwSetCursorPos(p_window, 
-                     viewport->m_width/2.0, 
-                     viewport->m_height/2.0);
+    //viewport_t* viewport = FURIOUS_FIND_GLOBAL(p_database, viewport_t);
+    //glfwSetCursorPos(p_window, 
+    //                 viewport->m_width/2.0, 
+    //                 viewport->m_height/2.0);
 
   }
   m_edit_mode = !m_edit_mode;
 }
 
 bool
-is_edit_mode()
+gs_is_edit_mode()
 {
   return m_edit_mode;
 }
 
 void
-draw_gui()
+gs_draw_gui()
 {
-  ImGui::NewFrame();
+  igNewFrame();
   if(m_show_gui)
   {
     //bool aux = true; ImGui::ShowDemoWindow(&aux);
 
-    ImGui::Begin("TNA");                         
-    ImGui::Text("Frame time %.3f ms",
-                1000.0f / ImGui::GetIO().Framerate);
+    igBegin("TNA",NULL, ImGuiWindowFlags_None);                         
+    igText("Frame time %.3f ms",
+                1000.0f / igGetIO()->Framerate);
 
-    ImGui::Text("FPS %.1f", 
-                ImGui::GetIO().Framerate);
+    //igText("FPS %.1f", 
+    //            ImGui::GetIO().Framerate);
 
-    ImGui::Text("Game Loop time: %.5f", 
-                m_last_game_loop_time);
-    ImGui::End();
+    //igText("Game Loop time: %.5f", 
+    //            m_last_game_loop_time);
+    igEnd();
 
-    tasking_widget_render();
+    gs_tasking_widget_render();
 
   }
-  ImGui::Render();
+  igRender();
 }
-
-
-
+/*
 
 
 void update_game_logic(void* ptr)
@@ -310,10 +361,12 @@ gs_run()
 
   while (!glfwWindowShouldClose(p_window)) 
   {
-    /*TRACE_RECORD(m_config.m_nthreads, 
-                 trace_event_type_t::E_NEW_FRAME, 
-                 NULL,
-                 NULL);
+    GS_TRACE_RECORD(m_config.m_nthreads, 
+                    E_TRACE_NEW_FRAME, 
+                    E_TASK_CAT_NONE,
+                    NULL,
+                    NULL);
+    /*
     
     // Keep running
     auto current_time = std::chrono::high_resolution_clock::now();
@@ -348,20 +401,21 @@ gs_run()
 
     p_current_app->on_frame_end();
 
-    TRACE_RECORD(m_config.m_num_worker_threads, 
-                 trace_event_type_t::E_TASK_START,
-                 "Rendering", 
-                 "");
-    draw_gui();
     */
+    GS_TRACE_RECORD(m_config.m_nthreads, 
+                    E_TRACE_TASK_START,
+                    E_TASK_CAT_RENDERING, 
+                    "Rendering", 
+                    "Rendering");
+    gs_draw_gui();
     gs_renderer_end_frame();
 
-    /*
-    TRACE_RECORD(m_config.m_num_worker_threads, 
-                 trace_event_type_t::E_TASK_STOP,
-                 "Rendering", 
-                 "");
-                 */
+
+    GS_TRACE_RECORD(m_config.m_nthreads, 
+                    E_TRACE_TASK_STOP,
+                    E_TASK_CAT_RENDERING,
+                    "Rendering", 
+                    "Rendering");
   }
 
   /*

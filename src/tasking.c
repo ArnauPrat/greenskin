@@ -233,10 +233,12 @@ gs_execution_context_reset(gs_execution_context_t* exec_context)
 static void
 insert_timing_event(uint32_t queue_id, 
                     gs_trace_event_type_t event_type, 
+                    gs_task_category_t category, 
                     gs_task_context_t* task_context)
 {
   GS_TRACE_RECORD(queue_id, 
                   event_type,
+                  category,
                   task_context->m_name, 
                   task_context->m_info);
 }
@@ -253,6 +255,7 @@ finalize_current_running_task() {
     // insert event
     insert_timing_event(gs_tasking_get_current_thread_id(), 
                         E_TRACE_TASK_STOP, 
+                        p_current_running_task->m_task.m_category,
                         p_current_running_task);
 
     if(p_current_running_task->p_syn_counter != NULL) 
@@ -329,6 +332,7 @@ gs_start_task(gs_task_context_t* task_context)
   // insert event
   insert_timing_event(gs_tasking_get_current_thread_id(), 
                       E_TRACE_TASK_START, 
+                      p_current_running_task->m_task.m_category,
                       p_current_running_task);
 
   // jump to fiber
@@ -354,6 +358,7 @@ resume_task(gs_task_context_t* runningTask)
   // insert event
   insert_timing_event(gs_tasking_get_current_thread_id(), 
                       E_TRACE_TASK_RESUME, 
+                      runningTask->m_task.m_category,
                       p_current_running_task);
 
   // call jump to fiber to resume
@@ -742,13 +747,14 @@ gs_tasking_yield_func(gs_yield_func_t yield_func, void* yield_data)
 
   insert_timing_event(gs_tasking_get_current_thread_id(), 
                       E_TRACE_TASK_YIELD, 
+                      p_current_running_task->m_task.m_category,
                       p_current_running_task);
 
   jump_fcontext(&(p_current_running_task->p_context->m_context), m_worker_contexts[m_current_thread_id]->m_context, NULL);
 }
 
 uint32_t
-tasking_get_num_threads() 
+gs_tasking_get_num_threads() 
 {
   GS_ASSERT(m_initialized && "ThreadPool is not initialized");
   return m_num_threads;

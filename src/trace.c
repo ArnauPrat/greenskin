@@ -82,6 +82,7 @@ gs_trace_release()
 void
 gs_trace_record(uint32_t queue_id, 
              gs_trace_event_type_t event_type,
+             gs_task_category_t    category,
              const char* name, 
              const char* info)
 {
@@ -92,6 +93,7 @@ gs_trace_record(uint32_t queue_id,
     gs_trace_event_t trace_event = {0};
     trace_event.m_time_us = clock() / (CLOCKS_PER_SEC/(1000*1000));
     trace_event.m_event_type = event_type;
+    trace_event.m_task_category = category;
     if(info != NULL)
     {
       strncpy(trace_event.m_info, info, GS_TRACE_MAX_INFO_LEN-1);
@@ -132,7 +134,7 @@ gs_trace_record(uint32_t queue_id,
 }
 
 gs_trace_event_t*
-trace_get_trace_event_array(uint32_t queue_id, uint32_t* count)
+gs_trace_get_trace_event_array(uint32_t queue_id, uint32_t* count)
 {
   GS_PERMA_ASSERT(!m_trace_record_enabled && "Trace arrays cannot be accessed while recording traces");
 

@@ -144,7 +144,7 @@ gsvk_renderer_init(const gs_config_t* config,
   m_vkrenderer.m_gqueue_index = -1;
   m_vkrenderer.m_pqueue_index = -1;
   m_vkrenderer.m_depth_format = VK_FORMAT_UNDEFINED;
-  m_vkrenderer.m_depth_image = (gsvk_image_t){VK_NULL_HANDLE, VK_NULL_HANDLE};
+  m_vkrenderer.m_depth_image = (gsvk_image_t){VK_NULL_HANDLE, {VK_NULL_HANDLE}, 0, 0};
   m_vkrenderer.m_swap_chain_images = NULL;
   m_vkrenderer.m_swap_chain_image_views = NULL; 
   m_vkrenderer.m_frame_buffers = NULL;
@@ -199,6 +199,9 @@ gsvk_renderer_init(const gs_config_t* config,
   gsvk_physical_device_init();
   gsvk_logical_device_init();
 
+  // Initializing vulkan memory allocator
+  gsvk_mem_alloc_init(&m_vkrenderer.m_vk_mem_alloc);
+
   // Initializing Shader Registry
   gsvk_shader_registry_init();
 
@@ -230,6 +233,7 @@ gsvk_renderer_release()
   gsvk_command_pool_release();
   gsvk_command_buffers_release();
   gsvk_shader_registry_release();
+  gsvk_mem_alloc_release(&m_vkrenderer.m_vk_mem_alloc);
   gsvk_logical_device_release();
   gsvk_physical_device_release();
   gsvk_surface_release();
@@ -415,7 +419,9 @@ gsvk_physical_device_init()
   GS_LOG_INFO("Initializing Vulkan physical device");
 
   // Adding the required device extensions
-  m_vkrenderer.m_num_device_extensions = 1;
+  m_vkrenderer.m_num_device_extensions = 2;
+
+  // Adding VK_KHR_SWAPCHAIN_EXTENSION
   m_vkrenderer.m_device_extensions  =
             (const char**)gs_stack_alloc_alloc(&m_vkrenderer.m_stack_alloc, 
                                                gs_os_min_alignment(), 
@@ -427,6 +433,16 @@ gsvk_physical_device_init()
                                               sizeof(char)*(strlen(VK_KHR_SWAPCHAIN_EXTENSION_NAME)+1),
                                               GS_NO_HINT);
   strcpy((char*)m_vkrenderer.m_device_extensions[0], VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+
+  // Adding VK_KHR_MAINTENANCE3_EXTENSION
+  //    This extension is required by the gsvk_mem_alloc in order to know the
+  //    maximum size of a vulkan memory allocation
+  m_vkrenderer.m_device_extensions[1] = 
+            (const char*)gs_stack_alloc_alloc(&m_vkrenderer.m_stack_alloc, 
+                                              gs_os_min_alignment(), 
+                                              sizeof(char)*(strlen(VK_KHR_MAINTENANCE3_EXTENSION_NAME)+1),
+                                              GS_NO_HINT);
+  strcpy((char*)m_vkrenderer.m_device_extensions[1], VK_KHR_MAINTENANCE3_EXTENSION_NAME);
 
 	// Creating Physical Device
   uint32_t device_count = 0;
@@ -511,6 +527,16 @@ gsvk_physical_device_init()
 
   // Obtaining Physical device capbilities
   vkGetPhysicalDeviceProperties(m_vkrenderer.m_physical_device, &m_vkrenderer.m_pd_properties);
+
+
+  GS_LOG_INFO("Found physical device with api support version %d.%d patch %d", 
+              VK_VERSION_MAJOR(m_vkrenderer.m_pd_properties.apiVersion), 
+              VK_VERSION_MINOR(m_vkrenderer.m_pd_properties.apiVersion),
+              VK_VERSION_PATCH(m_vkrenderer.m_pd_properties.apiVersion));
+
+  GS_ASSERT(VK_MAKE_VERSION(1,1,0) <= m_vkrenderer.m_pd_properties.apiVersion && "Unsupported device. Minimum vulkan version is 1.1");
+
+
   vkGetPhysicalDeviceMemoryProperties(m_vkrenderer.m_physical_device, &m_vkrenderer.m_pd_mem_properties);
   vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_vkrenderer.m_physical_device, 
                                             m_vkrenderer.m_window_surface, 
@@ -746,7 +772,7 @@ gsvk_swap_chain_init()
                   m_vkrenderer.m_depth_format, 
                   VK_IMAGE_TILING_OPTIMAL, 
                   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 
-                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+                  E_GSVK_MEM_TYPE_IMG_DEVICE);
 
   gsvk_image_transition_layout(&m_vkrenderer.m_depth_image, 
                                m_vkrenderer.m_logical_device,
@@ -1705,7 +1731,7 @@ gsvk_build_command_buffer(uint32_t index, gs_rendering_scene_t* scene)
   */
 
   // ADD IMGUI COMMAND BUFFER
-  //gsvk_gui_build_commands(index);
+  gsvk_gui_build_commands(index);
 
   vkCmdEndRenderPass(m_vkrenderer.m_command_buffers[index]);
 
@@ -1791,7 +1817,6 @@ gsvk_find_memory_type(VkMemoryRequirements* memreqs,
 {
   for (uint32_t i = 0; i < m_vkrenderer.m_pd_mem_properties.memoryTypeCount; i++) 
   {
-
     if ((memreqs->memoryTypeBits & (1 << i)) && 
         (m_vkrenderer.m_pd_mem_properties.memoryTypes[i].propertyFlags & memprops) 
         == memprops) {
@@ -1829,7 +1854,7 @@ gs_renderer_release(void)
 void
 gs_renderer_begin_frame(void) 
 {
-  //gsvk_gui_begin_frame();
+  gsvk_gui_begin_frame();
   return;
 }
 
@@ -1847,7 +1872,7 @@ gs_renderer_end_frame(void)
   if (result == VK_ERROR_OUT_OF_DATE_KHR) 
   {
     gsvk_recreate_swap_chain();
-    //gsvk_gui_recreate();
+    gsvk_gui_recreate();
     return;
   } 
   else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) 
@@ -1902,7 +1927,7 @@ gs_renderer_end_frame(void)
   if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) 
   {
     gsvk_recreate_swap_chain();
-    //gsvk_gui_recreate();
+    gsvk_gui_recreate();
   } 
   else if (result != VK_SUCCESS) 
   {
@@ -1917,13 +1942,13 @@ gs_renderer_end_frame(void)
 void
 gs_gui_init()
 {
-  //gsvk_gui_init();
+  gsvk_gui_init();
 }
 
 void
 gs_gui_release()
 {
-  //gsvk_gui_release();
+  gsvk_gui_release();
 }
 
 gs_device_properties_t
